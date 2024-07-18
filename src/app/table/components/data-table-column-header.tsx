@@ -21,11 +21,13 @@ interface DataTableColumnHeaderProps<TData, TValue>
   extends React.HTMLAttributes<HTMLDivElement> {
   column: Column<TData, TValue>;
   columnName: string;
+  columnType: string;
 }
 
 export function DataTableColumnHeader<TData, TValue>({
   column,
   columnName,
+  columnType,
   className,
 }: DataTableColumnHeaderProps<TData, TValue>) {
   const [open, setOpen] = useState(false);
@@ -79,6 +81,10 @@ export function DataTableColumnHeader<TData, TValue>({
         </DropdownMenuTrigger>
         {canSort && (
           <DropdownMenuContent align="start">
+            <DropdownMenuItem disabled className="cursor-default">
+            Type: {columnType}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => column.toggleSorting(false)} className="cursor-pointer">
               <ArrowUpIcon className="mr-2 h-3.5 w-3.5 text-muted-foreground/70" />
               Asc
