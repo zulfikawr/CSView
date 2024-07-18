@@ -1,6 +1,8 @@
 ## CSView
 
-CSView is a easy-to-use website for viewing CSV files in a dynamic table format. It allows users to upload CSV files and displays the data in a table with features such as sorting, filtering, and hiding columns.
+![Screenshot](screenshot.png)
+
+CSView is a easy-to-use website for viewing CSV files in a dynamic table format. It allows users to upload CSV files and displays the data in a table with features such as sorting, filtering, and hiding columns. Live site: [CSView](https://csviewer.vercel.app)
 
 
 ### Features
