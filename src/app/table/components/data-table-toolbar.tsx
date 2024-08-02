@@ -1,4 +1,7 @@
+// data-table-toolbar.tsx
+
 import React, { useEffect, useState } from "react";
+import { Edit, Download } from "lucide-react";
 import { Table } from "@tanstack/react-table";
 import { Input } from "@/components/ui/input";
 import { DataTableViewOptions } from "./data-table-view-options";
@@ -11,18 +14,29 @@ import { InfoPopover } from "./info-popover";
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
   onUpload: () => void;
+  isEditing: boolean;
+  onEditToggle: () => void;
   onDelete: () => void;
   hasData: boolean;
   onDataLoaded: (csvInfo: CSVInfo) => void;
   csvInfo: CSVInfo;
+  onSave: () => void;
+  onRevert: () => void;
+  onDownload: () => void;
 }
 
 export function DataTableToolbar<TData extends Record<string, any>>({
   table,
   onUpload,
+  isEditing,
+  onEditToggle,
+  onDelete,
   hasData,
   onDataLoaded,
   csvInfo,
+  onSave,
+  onRevert,
+  onDownload,
 }: DataTableToolbarProps<TData>) {
   const [searchValue, setSearchValue] = useState<string>("");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -67,6 +81,42 @@ export function DataTableToolbar<TData extends Record<string, any>>({
               <Trash className="mx-2 md:mx-0 md:mr-2 h-4 w-4" />
               <p className="hidden md:flex">Delete</p>
             </Button>
+            <Button
+              variant="outline"
+              onClick={onEditToggle}
+              className="h-8 px-2 lg:px-3"
+            >
+              <Edit className="mx-2 md:mx-0 md:mr-2 h-4 w-4" />
+              <p className="hidden md:flex">
+                {isEditing ? "Cancel Edit" : "Edit"}
+              </p>
+            </Button>
+            {isEditing && (
+              <>
+                <Button
+                  variant="default"
+                  onClick={onSave}
+                  className="h-8 px-2 lg:px-3"
+                >
+                  Save
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={onRevert}
+                  className="h-8 px-2 lg:px-3"
+                >
+                  Revert
+                </Button>
+              </>
+            )}
+            <Button
+              variant="outline"
+              onClick={onDownload}
+              className="h-8 px-2 lg:px-3"
+            >
+              <Download className="mx-2 md:mx-0 md:mr-2 h-4 w-4" />
+              <p className="hidden md:flex">Download</p>
+            </Button>
           </>
         )}
         <Button
@@ -80,7 +130,9 @@ export function DataTableToolbar<TData extends Record<string, any>>({
         <AlertModal
           isOpen={isDeleteModalOpen}
           onClose={() => setIsDeleteModalOpen(false)}
-          onConfirm={() => handleDeleteConfirm(onDataLoaded, setIsDeleteModalOpen)}
+          onConfirm={() =>
+            handleDeleteConfirm(onDataLoaded, () => setIsDeleteModalOpen(false))
+          }
         />
       </div>
     </div>

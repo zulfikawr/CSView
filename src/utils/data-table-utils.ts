@@ -1,5 +1,6 @@
-import Papa, { ParseResult } from 'papaparse';
-import { toast } from '@/components/ui/use-toast';
+import Papa, { ParseResult } from "papaparse";
+import { saveAs } from "file-saver";
+import { toast } from "@/components/ui/use-toast";
 
 export interface CSVInfo {
   data: Record<string, any>[];
@@ -13,13 +14,15 @@ export interface CSVInfo {
 }
 
 const detectDataType = (values: any[]): string => {
-  const nonNullValues = values.filter(v => v !== null && v !== undefined && v !== '');
-  if (nonNullValues.length === 0) return 'Empty';
+  const nonNullValues = values.filter(
+    (v) => v !== null && v !== undefined && v !== ""
+  );
+  if (nonNullValues.length === 0) return "Empty";
 
-  if (nonNullValues.every(v => typeof v === 'number')) return 'Number';
-  if (nonNullValues.every(v => typeof v === 'boolean')) return 'Boolean';
-  if (nonNullValues.every(v => !isNaN(Date.parse(v)))) return 'Date';
-  return 'String';
+  if (nonNullValues.every((v) => typeof v === "number")) return "Number";
+  if (nonNullValues.every((v) => typeof v === "boolean")) return "Boolean";
+  if (nonNullValues.every((v) => !isNaN(Date.parse(v)))) return "Date";
+  return "String";
 };
 
 export const processFile = (
@@ -31,21 +34,30 @@ export const processFile = (
 
   Papa.parse(file, {
     complete: (result: ParseResult<Record<string, any>>) => {
-      const columns = result.meta.fields?.map(field => field.trim()) || [];
+      const columns = result.meta.fields?.map((field) => field.trim()) || [];
       const data = result.data;
 
       const filteredData = data.filter((row) =>
-        Object.values(row).some((cell) => cell !== null && cell !== undefined && String(cell).trim() !== "")
+        Object.values(row).some(
+          (cell) =>
+            cell !== null && cell !== undefined && String(cell).trim() !== ""
+        )
       );
 
       const totalRows = filteredData.length;
-      const emptyCells = filteredData.reduce((count, row) =>
-        count + Object.values(row).filter((cell) => cell === null || cell === undefined || String(cell).trim() === "").length
-      , 0);
+      const emptyCells = filteredData.reduce(
+        (count, row) =>
+          count +
+          Object.values(row).filter(
+            (cell) =>
+              cell === null || cell === undefined || String(cell).trim() === ""
+          ).length,
+        0
+      );
 
       const columnTypes: Record<string, string> = {};
-      columns.forEach(column => {
-        const columnValues = filteredData.map(row => row[column]);
+      columns.forEach((column) => {
+        const columnValues = filteredData.map((row) => row[column]);
         columnTypes[column] = detectDataType(columnValues);
       });
 
@@ -57,7 +69,7 @@ export const processFile = (
         emptyCells,
         fileSize: file.size,
         fileName: file.name,
-        delimiter: result.meta.delimiter || ',',
+        delimiter: result.meta.delimiter || ",",
       };
 
       onDataLoaded(csvInfo);
@@ -67,11 +79,17 @@ export const processFile = (
       setLoading(false);
     },
     header: true,
-    skipEmptyLines: 'greedy',
+    skipEmptyLines: "greedy",
     transformHeader: (header: string) => header.trim(),
     transform: (value: string) => value.trim(),
     dynamicTyping: true,
   });
+};
+
+export const handleDownload = (data: Record<string, any>[]) => {
+  const csv = Papa.unparse(data);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  saveAs(blob, "exported_data.csv");
 };
 
 export const handleDeleteConfirm = (
@@ -85,8 +103,8 @@ export const handleDeleteConfirm = (
     totalRows: 0,
     emptyCells: 0,
     fileSize: 0,
-    fileName: '',
-    delimiter: '',
+    fileName: "",
+    delimiter: "",
   });
   toast({
     description: "Data deleted",

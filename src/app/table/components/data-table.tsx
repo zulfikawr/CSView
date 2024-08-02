@@ -1,3 +1,5 @@
+// data-table.tsx
+
 "use client";
 
 import * as React from "react";
@@ -14,18 +16,32 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { DataTablePagination } from "./data-table-pagination";
 import { DataTableToolbar } from "./data-table-toolbar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useDropzone } from 'react-dropzone';
+import { useDropzone } from "react-dropzone";
 import { AlertModal } from "@/components/ui/alert-modal";
 import { ErrorModal } from "@/components/ui/error-modal";
 import { ReplaceModal } from "@/components/ui/replace-modal";
-import { DataTableColumnHeader } from './data-table-column-header';
-import { processFile, handleDeleteConfirm, handleReplaceConfirm, CSVInfo } from "@/utils/data-table-utils";
+import { DataTableColumnHeader } from "./data-table-column-header";
+import {
+  processFile,
+  handleDeleteConfirm,
+  handleReplaceConfirm,
+  CSVInfo,
+  handleDownload,
+} from "@/utils/data-table-utils";
+import { Input } from "@/components/ui/input";
 
-interface DataTableProps<TData extends Record<string, any>> {
+interface DataTableProps<TData> {
   columns: ColumnDef<TData, any>[];
   data: TData[];
   onDataLoaded: (csvInfo: CSVInfo) => void;
@@ -42,6 +58,8 @@ interface TableState {
   isReplaceModalOpen: boolean;
   pendingFile: File | null;
   csvInfo: CSVInfo;
+  isEditing: boolean;
+  editedData: Record<string, any>[];
 }
 
 const initialCSVInfo: CSVInfo = {
@@ -51,7 +69,7 @@ const initialCSVInfo: CSVInfo = {
   totalRows: 0,
   emptyCells: 0,
   fileSize: 0,
-  fileName: '',
+  fileName: "",
   delimiter: "",
 };
 
@@ -71,43 +89,114 @@ export function DataTable<TData extends Record<string, any>>({
     isReplaceModalOpen: false,
     pendingFile: null,
     csvInfo: initialCSVInfo,
+    isEditing: false,
+    editedData: [],
   });
 
-  const updateState = (updates: Partial<TableState> | ((prevState: TableState) => Partial<TableState>)) => {
-    setState(prevState => {
-      const newUpdates = typeof updates === 'function' ? updates(prevState) : updates;
+  const updateState = (
+    updates:
+      | Partial<TableState>
+      | ((prevState: TableState) => Partial<TableState>)
+  ) => {
+    setState((prevState) => {
+      const newUpdates =
+        typeof updates === "function" ? updates(prevState) : updates;
       return { ...prevState, ...newUpdates };
     });
   };
 
   const handleDataLoaded = (csvInfo: CSVInfo) => {
-    updateState({ csvInfo });
+    updateState({ csvInfo, editedData: csvInfo.data });
     onDataLoaded(csvInfo);
   };
 
-  const onDrop = React.useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles.length) {
-      const file = acceptedFiles[0];
-      if (data.length > 0) {
-        updateState({ pendingFile: file, isReplaceModalOpen: true });
-      } else {
-        processFile(file, handleDataLoaded, (loading) => updateState({ loading }));
+  const onDrop = React.useCallback(
+    (acceptedFiles: File[]) => {
+      if (acceptedFiles.length) {
+        const file = acceptedFiles[0];
+        if (data.length > 0) {
+          updateState({ pendingFile: file, isReplaceModalOpen: true });
+        } else {
+          processFile(file, handleDataLoaded, (loading) =>
+            updateState({ loading })
+          );
+        }
       }
-    }
-  }, [data, onDataLoaded]);
+    },
+    [data, onDataLoaded]
+  );
+
+  const handleCellEdit = (rowIndex: number, columnId: string, value: any) => {
+    updateState((prev) => {
+      const newEditedData = [...prev.editedData];
+      newEditedData[rowIndex] = {
+        ...newEditedData[rowIndex],
+        [columnId]: value,
+      };
+      return { editedData: newEditedData };
+    });
+  };
+
+  const handleColumnNameEdit = (oldName: string, newName: string) => {
+    updateState((prev) => {
+      const newColumns = prev.csvInfo.columns.map((col) =>
+        col === oldName ? newName : col
+      );
+      const newColumnTypes = { ...prev.csvInfo.columnTypes };
+      if (oldName !== newName) {
+        newColumnTypes[newName] = newColumnTypes[oldName];
+        delete newColumnTypes[oldName];
+      }
+      const newEditedData = prev.editedData.map((row) => {
+        const newRow = { ...row };
+        if (oldName !== newName) {
+          newRow[newName] = newRow[oldName];
+          delete newRow[oldName];
+        }
+        return newRow;
+      });
+      return {
+        csvInfo: {
+          ...prev.csvInfo,
+          columns: newColumns,
+          columnTypes: newColumnTypes,
+        },
+        editedData: newEditedData,
+      };
+    });
+  };
+
+  const handleEditToggle = () => {
+    updateState((prev) => ({
+      isEditing: !prev.isEditing,
+      editedData: prev.isEditing ? [] : [...data],
+    }));
+  };
+
+  const handleSave = () => {
+    updateState((prev) => ({
+      isEditing: false,
+      csvInfo: { ...prev.csvInfo, data: prev.editedData },
+    }));
+    onDataLoaded({ ...state.csvInfo, data: state.editedData });
+  };
+
+  const handleRevert = () => {
+    updateState({ isEditing: false, editedData: [] });
+  };
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
     accept: {
-      'text/csv': ['.csv'],
+      "text/csv": [".csv"],
     },
     noClick: true,
     onDropRejected: () => updateState({ isErrorModalOpen: true }),
   });
 
-  const table = useReactTable({
-    data,
-    columns,
+  const table = useReactTable<TData>({
+    data: state.isEditing ? (state.editedData as TData[]) : data,
+    columns: columns as ColumnDef<TData, any>[],
     state: {
       sorting: state.sorting,
       columnVisibility: state.columnVisibility,
@@ -115,14 +204,27 @@ export function DataTable<TData extends Record<string, any>>({
       columnFilters: state.columnFilters,
     },
     enableRowSelection: true,
-    onRowSelectionChange: (updater) => 
-      updateState((prev) => ({ rowSelection: updater instanceof Function ? updater(prev.rowSelection) : updater })),
-    onSortingChange: (updater) => 
-      updateState((prev) => ({ sorting: updater instanceof Function ? updater(prev.sorting) : updater })),
-    onColumnVisibilityChange: (updater) => 
-      updateState((prev) => ({ columnVisibility: updater instanceof Function ? updater(prev.columnVisibility) : updater })),
-    onColumnFiltersChange: (updater) => 
-      updateState((prev) => ({ columnFilters: updater instanceof Function ? updater(prev.columnFilters) : updater })),
+    onRowSelectionChange: (updater) =>
+      updateState((prev) => ({
+        rowSelection:
+          updater instanceof Function ? updater(prev.rowSelection) : updater,
+      })),
+    onSortingChange: (updater) =>
+      updateState((prev) => ({
+        sorting: updater instanceof Function ? updater(prev.sorting) : updater,
+      })),
+    onColumnVisibilityChange: (updater) =>
+      updateState((prev) => ({
+        columnVisibility:
+          updater instanceof Function
+            ? updater(prev.columnVisibility)
+            : updater,
+      })),
+    onColumnFiltersChange: (updater) =>
+      updateState((prev) => ({
+        columnFilters:
+          updater instanceof Function ? updater(prev.columnFilters) : updater,
+      })),
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -132,17 +234,24 @@ export function DataTable<TData extends Record<string, any>>({
 
   return (
     <div className="space-y-4">
-      <DataTableToolbar 
-        table={table} 
-        onUpload={open} 
-        onDelete={() => updateState({ isDeleteModalOpen: true })} 
-        hasData={data.length > 0} 
+      <DataTableToolbar
+        table={table}
+        onUpload={open}
+        onDelete={() => updateState({ isDeleteModalOpen: true })}
+        hasData={data.length > 0}
         onDataLoaded={handleDataLoaded}
         csvInfo={state.csvInfo}
+        isEditing={state.isEditing}
+        onEditToggle={handleEditToggle}
+        onSave={handleSave}
+        onRevert={handleRevert}
+        onDownload={() =>
+          handleDownload(state.isEditing ? state.editedData : data)
+        }
       />
       <div
         {...getRootProps()}
-        className={`rounded-md border ${isDragActive ? 'bg-secondary' : ''}`}
+        className={`rounded-md border ${isDragActive ? "bg-secondary" : ""}`}
       >
         <input {...getInputProps()} />
         <Table>
@@ -155,7 +264,13 @@ export function DataTable<TData extends Record<string, any>>({
                       <DataTableColumnHeader
                         column={header.column}
                         columnName={String(header.column.columnDef.header)}
-                        columnType={state.csvInfo.columnTypes[String(header.column.columnDef.header)] || 'Unknown'}
+                        columnType={
+                          state.csvInfo.columnTypes[
+                            String(header.column.columnDef.header)
+                          ] || "Unknown"
+                        }
+                        isEditing={state.isEditing}
+                        onColumnNameChange={handleColumnNameEdit}
                       />
                     )}
                   </TableHead>
@@ -182,21 +297,45 @@ export function DataTable<TData extends Record<string, any>>({
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      {state.isEditing ? (
+                        <Input
+                          value={cell.getValue() as string}
+                          onChange={(e) =>
+                            handleCellEdit(
+                              row.index,
+                              cell.column.id,
+                              e.target.value
+                            )
+                          }
+                          isEditing={true}
+                        />
+                      ) : (
+                        flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )
+                      )}
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : (
               <TableRow
-                className={`${isDragActive ? 'bg-secondary' : ''} cursor-pointer`}
+                className={`${
+                  isDragActive ? "bg-secondary" : ""
+                } cursor-pointer`}
                 onClick={open}
               >
-                <TableCell colSpan={columns.length} className="h-96 text-center">
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-96 text-center"
+                >
                   {isDragActive ? (
                     <p>Drop the CSV file here ...</p>
                   ) : data.length === 0 ? (
-                    <p>Drag and drop a CSV file here, or click to select a file</p>
+                    <p>
+                      Drag and drop a CSV file here, or click to select a file
+                    </p>
                   ) : (
                     <p>No results found</p>
                   )}
@@ -210,7 +349,11 @@ export function DataTable<TData extends Record<string, any>>({
       <AlertModal
         isOpen={state.isDeleteModalOpen}
         onClose={() => updateState({ isDeleteModalOpen: false })}
-        onConfirm={() => handleDeleteConfirm(handleDataLoaded, () => updateState({ isDeleteModalOpen: false }))}
+        onConfirm={() =>
+          handleDeleteConfirm(handleDataLoaded, () =>
+            updateState({ isDeleteModalOpen: false })
+          )
+        }
       />
       <ErrorModal
         isOpen={state.isErrorModalOpen}
@@ -218,14 +361,18 @@ export function DataTable<TData extends Record<string, any>>({
       />
       <ReplaceModal
         isOpen={state.isReplaceModalOpen}
-        onClose={() => updateState({ isReplaceModalOpen: false, pendingFile: null })}
-        onConfirm={() => handleReplaceConfirm(
-          state.pendingFile, 
-          handleDataLoaded, 
-          (loading) => updateState({ loading }), 
-          () => updateState({ isReplaceModalOpen: false }),
-          () => updateState({ pendingFile: null })
-        )}
+        onClose={() =>
+          updateState({ isReplaceModalOpen: false, pendingFile: null })
+        }
+        onConfirm={() =>
+          handleReplaceConfirm(
+            state.pendingFile,
+            handleDataLoaded,
+            (loading) => updateState({ loading }),
+            () => updateState({ isReplaceModalOpen: false }),
+            () => updateState({ pendingFile: null })
+          )
+        }
       />
     </div>
   );
